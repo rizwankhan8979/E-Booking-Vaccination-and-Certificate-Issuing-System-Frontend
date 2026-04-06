@@ -9,8 +9,9 @@ const menuItems = [
   { id: 'doctors', label: 'Doctors', path: '/dashboard/doctors', icon: 'stethoscope' },
   { id: 'centers', label: 'Vaccination Centers', path: '/dashboard/centers', icon: 'building' },
   { id: 'vaccines', label: 'Vaccines', path: '/dashboard/vaccines', icon: 'syringe' },
-  { id: 'doses', label: 'Doses', path: '/dashboard/doses', icon: 'vial' },
+  { id: 'doses', label: 'Doses', path: '/dashboard/doses', icon: 'vial', adminOnly: true },
   { id: 'appointments', label: 'Appointments', path: '/dashboard/appointments', icon: 'calendar' },
+  { id: 'profile', label: 'My Profile', path: '/dashboard/profile', icon: 'user', userOnly: true },
 ];
 
 const icons = {
@@ -73,8 +74,13 @@ const icons = {
       <path d="M12 14h.01" />
       <path d="M16 14h.01" />
       <path d="M8 18h.01" />
-      <path d="M12 18h.01" />
       <path d="M16 18h.01" />
+    </svg>
+  ),
+  user: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
     </svg>
   ),
 };
@@ -86,16 +92,58 @@ const sectionTitles = {
   vaccines: 'Vaccines Management',
   doses: 'Doses Management',
   appointments: 'Appointments',
+  profile: 'My Profile',
 };
 
 
-import RegisterModal from '../auth/RegisterModal';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
+import { toast } from 'sonner';
 
+// Force recompile 1
 export default function DashboardLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isLogoutHovered, setIsLogoutHovered] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
+
+  const [userRole, setUserRole] = useState(() => typeof window !== 'undefined' ? localStorage.getItem('userRole') : null);
+
+  useEffect(() => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    
+    // Allow guests to view these sections
+    const publicDashboardPaths = [
+      '/dashboard',
+      '/dashboard/doctors',
+      '/dashboard/vaccines',
+      '/dashboard/centers'
+    ];
+
+    if (!token && pathname && !publicDashboardPaths.includes(pathname)) {
+      window.location.href = '/?auth=login&session=expired';
+      return;
+    }
+
+    // Fetch Profile to get accurate role
+    const fetchProfile = async () => {
+      try {
+        const response = await api.get('/user/profile');
+        const role = response.data.role;
+        setUserRole(role);
+        localStorage.setItem('userRole', role);
+      } catch (err) {
+        console.error("Error fetching profile roles:", err);
+      }
+    };
+    if (token) fetchProfile();
+  }, [pathname]);
+
+  const filteredMenuItems = menuItems.filter(item => {
+    if (item.adminOnly) return userRole === 'ADMIN';
+    if (item.userOnly) return userRole === 'USER';
+    return true;
+  });
 
   const activeSection = pathname === '/dashboard' ? 'overview' : (pathname.split('/')[2] || 'users');
   const title = activeSection === 'overview' ? 'Overview' : (sectionTitles[activeSection] || 'Dashboard');
@@ -116,11 +164,11 @@ export default function DashboardLayout({ children }) {
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
               <path d="m9 12 2 2 4-4" />
             </svg>
-            e-Vaccination
+            e-Booking
           </Link>
         </div>
         <nav className="sidebar-nav">
-          {menuItems.map((item) => (
+          {filteredMenuItems.map((item) => (
             <Link
               key={item.id}
               href={item.path}
@@ -131,6 +179,39 @@ export default function DashboardLayout({ children }) {
               <span>{item.label}</span>
             </Link>
           ))}
+          
+          <div style={{ flex: 1 }}></div>
+
+          <button
+            className="sidebar-nav-item"
+            style={{ 
+              color: isLogoutHovered ? '#ef4444' : 'var(--text-secondary)', 
+              background: isLogoutHovered ? 'rgba(239, 68, 68, 0.1)' : 'transparent',
+              marginTop: 'auto', 
+              border: 'none', 
+              width: '100%', 
+              textAlign: 'left', 
+              cursor: 'pointer',
+              transition: 'all 0.2s ease'
+            }}
+            onMouseEnter={() => setIsLogoutHovered(true)}
+            onMouseLeave={() => setIsLogoutHovered(false)}
+            onClick={() => {
+              if (window.confirm("Are you sure you want to logout?")) {
+                localStorage.removeItem('token');
+                localStorage.removeItem('userEmail');
+                toast.success("Logout Successful");
+                router.push('/');
+              }
+            }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+            <span>Logout</span>
+          </button>
         </nav>
       </aside>
 

@@ -3,14 +3,18 @@
 import React, { useState, useEffect } from "react";
 import { toast } from 'sonner';
 import api from "../../lib/axios";
+import { useStore } from "../../lib/store";
 import Card from "../shared/Card";
 import Table from "../shared/Table";
 import Modal from "../shared/Modal";
 import StatCard from "../shared/StatCard";
 
 export default function AppointmentsPage() {
+  const { doctors, fetchDoctors, vaccines, fetchVaccines, users, fetchUsers } = useStore();
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [profile, setProfile] = useState(null);
+  const [userRole, setUserRole] = useState(null);
 
   // Modals
   const [showBookingModal, setShowBookingModal] = useState(false);
@@ -19,9 +23,6 @@ export default function AppointmentsPage() {
 
   // Data
   const [selectedAppointment, setSelectedAppointment] = useState(null);
-  const [vaccines, setVaccines] = useState([]);
-  const [doctors, setDoctors] = useState([]);
-  const [users, setUsers] = useState([]);
 
   // Booking Form
   const [bookingData, setBookingData] = useState({
@@ -33,49 +34,46 @@ export default function AppointmentsPage() {
   });
 
   // Since we don't have Get All Appointments API yet, we'll keep a local list for the session
-  // or initializing with empty. Ideally, backend should provide GET /appointment/getAll
+  // Now we have Get My Bookings functionality!
+
+  const [fetchingBookings, setFetchingBookings] = useState(false);
+
+  const handleGetMyBookings = async () => {
+    setFetchingBookings(true);
+    try {
+      const response = await api.get("/appointment/my-bookings");
+      if (Array.isArray(response.data)) {
+        setAppointments(response.data);
+        toast.success("Bookings loaded successfully");
+      }
+    } catch (error) {
+      console.error("Error fetching bookings:", error);
+      toast.error(error.response?.data?.message || "Failed to load bookings");
+    } finally {
+      setFetchingBookings(false);
+    }
+  };
 
   const [doctorVaccines, setDoctorVaccines] = useState([]);
   const [fetchingVaccines, setFetchingVaccines] = useState(false);
 
-  const fetchOptions = async () => {
-    try {
-      // Fetch data in parallel and handle errors for each individually
-      const results = await Promise.allSettled([
-        api.get("/doctor/getAll"),
-        api.get("/user/getAll"),
-        api.get("/vaccine/getAll")
-      ]);
-
-      const [doctorRes, userRes, vaccineRes] = results;
-
-      if (doctorRes.status === 'fulfilled' && Array.isArray(doctorRes.value.data)) {
-        setDoctors(doctorRes.value.data);
-      } else if (doctorRes.status === 'rejected') {
-        console.error("Doctor fetch failed:", doctorRes.reason);
-      }
-
-      if (userRes.status === 'fulfilled' && Array.isArray(userRes.value.data)) {
-        setUsers(userRes.value.data);
-      } else if (userRes.status === 'rejected') {
-        console.error("User fetch failed:", userRes.reason);
-      }
-
-      if (vaccineRes.status === 'fulfilled' && Array.isArray(vaccineRes.value.data)) {
-        setVaccines(vaccineRes.value.data);
-      } else if (vaccineRes.status === 'rejected') {
-        console.error("Vaccine fetch failed:", vaccineRes.reason);
-      }
-
-    } catch (error) {
-      console.error("Error in fetchOptions:", error);
-      toast.error("Failed to load dashboard options. Please check if backend is running.");
-    }
-  };
-
   useEffect(() => {
-    fetchOptions();
-  }, []);
+    fetchDoctors();
+    fetchUsers();
+    fetchVaccines();
+    
+    // Fetch current user profile
+    const fetchProfile = async () => {
+      try {
+        const response = await api.get("/user/profile");
+        setProfile(response.data);
+        setUserRole(response.data.role); // Use role from API response
+      } catch (err) {
+        console.error("Error fetching profile:", err);
+      }
+    };
+    fetchProfile();
+  }, [fetchDoctors, fetchUsers, fetchVaccines]);
 
   // Fetch vaccines when doctor is selected
   useEffect(() => {
@@ -128,6 +126,8 @@ export default function AppointmentsPage() {
         doctorName: doctor ? doctor.name : "Dr. " + payload.docId,
         vaccineName: vaccine ? vaccine.vaccineName : "Vaccine #" + payload.vaccineId,
         userName: user ? user.name : "User #" + payload.userId,
+        centerName: doctor && doctor.vaccinationCenter ? doctor.vaccinationCenter.centreName : "N/A",
+        centerAddress: doctor && doctor.vaccinationCenter ? doctor.vaccinationCenter.address : "N/A",
         date: payload.appointmentDate,
         time: payload.appointmentTime,
         status: "Confirmed"
@@ -161,6 +161,7 @@ export default function AppointmentsPage() {
   const columns = [
     { key: "userName", label: "Vaccinee" },
     { key: "doctorName", label: "Doctor" },
+    { key: "centerName", label: "Center" },
     { key: "vaccineName", label: "Vaccine" },
     { key: "date", label: "Date" },
     { key: "time", label: "Time" },
@@ -216,7 +217,7 @@ export default function AppointmentsPage() {
                 <option value="">{fetchingVaccines ? "Loading..." : bookingData.docId ? (doctorVaccines.length > 0 ? "Select Vaccine" : "No Vaccines assigned to this Doctor") : "Select Doctor First"}</option>
                 {doctorVaccines.map((v) => (
                   <option key={v.id} value={v.id}>
-                    {v.vaccineName}
+                    {v.vaccineName} (₹{v.price || 0})
                   </option>
                 ))}
               </select>
@@ -227,28 +228,40 @@ export default function AppointmentsPage() {
           </div>
         </div>
 
-        <div className="form-group">
-          <label className="form-label" style={{ fontWeight: '600' }}>Choose Vaccinee (User)</label>
-          <div style={{ position: 'relative' }}>
-            <select
-              className="form-select"
-              value={bookingData.userId}
-              onChange={(e) => setBookingData({ ...bookingData, userId: e.target.value })}
-              style={{ paddingLeft: '40px' }}
-              required
-            >
-              <option value="">{users.length > 0 ? "Select User" : "No Users found in database"}</option>
-              {users.map((user) => (
-                <option key={user.userId} value={user.userId}>
-                  {user.name} ({user.mobileNo})
-                </option>
-              ))}
-            </select>
-            <div style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+        {userRole === 'ADMIN' ? (
+          <div className="form-group">
+            <label className="form-label" style={{ fontWeight: '600' }}>Choose Vaccinee (User)</label>
+            <div style={{ position: 'relative' }}>
+              <select
+                className="form-select"
+                value={bookingData.userId}
+                onChange={(e) => setBookingData({ ...bookingData, userId: e.target.value })}
+                style={{ paddingLeft: '40px' }}
+                required
+              >
+                <option value="">{users.length > 0 ? "Select User" : "No Users found in database"}</option>
+                {users.map((user) => (
+                  <option key={user.userId} value={user.userId}>
+                    {user.name} ({user.mobileNo})
+                  </option>
+                ))}
+              </select>
+              <div style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          <div style={{ padding: '16px', background: 'var(--background)', borderRadius: '12px', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--primary-light)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+            </div>
+            <div>
+              <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-secondary)' }}>Booking for</p>
+              <p style={{ margin: 0, fontWeight: '600', color: 'var(--text-primary)' }}>{profile?.name || "Loading..."}</p>
+            </div>
+          </div>
+        )}
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', padding: '20px', background: 'var(--background)', borderRadius: '16px' }}>
           <div className="form-group" style={{ marginBottom: 0 }}>
@@ -300,39 +313,59 @@ export default function AppointmentsPage() {
             Manage vaccination appointment bookings
           </p>
         </div>
-        <button
-          className="btn btn-primary"
-          onClick={() => {
-            setShowBookingModal(true);
-            setBookingData({
-              docId: "",
-              vaccineId: "",
-              userId: "",
-              appointmentDate: "",
-              appointmentTime: "",
-            });
-          }}
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <button
+            className="btn btn-primary"
+            onClick={() => {
+              if (!localStorage.getItem('token')) {
+                window.location.href = '/?auth=login';
+              } else {
+                handleGetMyBookings();
+              }
+            }}
+            disabled={fetchingBookings}
           >
-            <line x1="12" x2="12" y1="5" y2="19" />
-            <line x1="5" x2="19" y1="12" y2="12" />
-          </svg>
-          Book Appointment
-        </button>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+            {fetchingBookings ? "Loading..." : "My Bookings"}
+          </button>
+          <button
+            className="btn btn-primary"
+            onClick={() => {
+              if (!localStorage.getItem('token')) {
+                window.location.href = '/?auth=login';
+              } else {
+                setShowBookingModal(true);
+                setBookingData({
+                  docId: "",
+                  vaccineId: "",
+                  userId: userRole === 'ADMIN' ? "" : (profile?.userId || ""),
+                  appointmentDate: "",
+                  appointmentTime: "",
+                });
+              }
+            }}
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <line x1="12" x2="12" y1="5" y2="19" />
+              <line x1="5" x2="19" y1="12" y2="12" />
+            </svg>
+            Book Appointment
+          </button>
+        </div>
       </div>
 
       <div className="stats-grid">
         <StatCard
           icon="appointments"
           value={appointments.length}
-          label="Total Appointments (Session)"
+          label="Total Bookings"
           variant="primary"
         />
         {/* Placeholders since we can't query stats yet */}
@@ -350,7 +383,7 @@ export default function AppointmentsPage() {
         />
       </div>
 
-      <Card title="Appointment History (Session)">
+      <Card title="Appointment History">
         <Table
           columns={columns}
           data={appointments}
@@ -423,6 +456,14 @@ export default function AppointmentsPage() {
               <div className="detail-value">{selectedAppointment.doctorName}</div>
             </div>
             <div className="detail-item">
+              <div className="detail-label">Center</div>
+              <div className="detail-value" style={{ color: 'var(--primary)', fontWeight: '600' }}>{selectedAppointment.centerName}</div>
+            </div>
+            <div className="detail-item" style={{ gridColumn: 'span 2' }}>
+              <div className="detail-label">Center Address</div>
+              <div className="detail-value" style={{ fontSize: '13px' }}>{selectedAppointment.centerAddress}</div>
+            </div>
+            <div className="detail-item">
               <div className="detail-label">Vaccine</div>
               <div className="detail-value">{selectedAppointment.vaccineName}</div>
             </div>
@@ -434,6 +475,7 @@ export default function AppointmentsPage() {
               <div className="detail-label">Time</div>
               <div className="detail-value">{selectedAppointment.time}</div>
             </div>
+            {/* Price would come from the vaccine object if available in selectedAppointment */}
             <div className="detail-item">
               <div className="detail-label">Status</div>
               <div className="detail-value">

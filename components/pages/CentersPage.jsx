@@ -3,14 +3,14 @@
 import React, { useState, useEffect } from "react";
 import { toast } from 'sonner';
 import api from "../../lib/axios";
+import { useStore } from "../../lib/store";
 import Card from "../shared/Card";
 import Table from "../shared/Table";
 import Modal from "../shared/Modal";
 import StatCard from "../shared/StatCard";
 
 export default function CentersPage() {
-  const [centers, setCenters] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const { centers, loadingCenters: loading, fetchCenters } = useStore();
   const [showAddModal, setShowAddModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedCenter, setSelectedCenter] = useState(null);
@@ -22,22 +22,9 @@ export default function CentersPage() {
     doseCapacity: "",
   });
 
-  const fetchCenters = async () => {
-    setLoading(true);
-    try {
-      const response = await api.get('/vaccinationCenter/getAll');
-      setCenters(Array.isArray(response.data) ? response.data : []);
-    } catch (error) {
-      console.warn("Error fetching centers (Backend likely offline):", error.message);
-      // toast.error("Failed to fetch vaccination centers");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
     fetchCenters();
-  }, []);
+  }, [fetchCenters]);
 
   const handleAddCenter = async (e) => {
     e.preventDefault();
@@ -48,6 +35,7 @@ export default function CentersPage() {
         // If the input type="time" gives generic 'HH:mm', append ':00' if needed
         openingTime: formData.openingTime.length === 5 ? `${formData.openingTime}:00` : formData.openingTime,
         closingTime: formData.closingTime.length === 5 ? `${formData.closingTime}:00` : formData.closingTime,
+        doseCapacity: Number(formData.doseCapacity),
       };
 
       await api.post("/vaccinationCenter/add", payload);
@@ -60,10 +48,32 @@ export default function CentersPage() {
         closingTime: "17:00:00",
         doseCapacity: "",
       });
-      fetchCenters();
+      fetchCenters(true); // force fetch
     } catch (error) {
-      console.error("Error adding center:", error);
-      toast.error("Failed to add vaccination center");
+      console.error("Full Error Object:", error);
+      if (error.response?.status === 403) {
+        toast.error("Access Denied", {
+          description: "This operation is restricted to Administrators only. Please contact your supervisor.",
+          duration: 5000,
+        });
+        return;
+      }
+      const data = error.response?.data;
+      let msg = "Failed to add vaccination center";
+      
+      if (data) {
+        if (typeof data === 'string' && data.trim() !== "") {
+          msg = data;
+        } else if (data.message && typeof data.message === 'string' && data.message.trim() !== "") {
+          msg = data.message;
+        } else if (typeof data === 'object') {
+          msg = JSON.stringify(data);
+        }
+      } else if (error.message) {
+        msg = error.message;
+      }
+      
+      toast.error(msg);
     }
   };
 
@@ -89,7 +99,16 @@ export default function CentersPage() {
             Manage vaccination centers and their capacity
           </p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>
+        <button 
+          className="btn btn-primary" 
+          onClick={() => {
+            if (!localStorage.getItem('token')) {
+              window.location.href = '/?auth=login';
+            } else {
+              setShowAddModal(true);
+            }
+          }}
+        >
           <svg
             width="16"
             height="16"
@@ -172,7 +191,7 @@ export default function CentersPage() {
 
                       await Promise.all(samples.map(data => api.post("/vaccinationCenter/add", data)));
                       toast.success("Sample data loaded successfully");
-                      fetchCenters();
+                      fetchCenters(true); // force fetch
                     } catch (err) {
                       console.error(err);
                       toast.error("Failed to load sample data");

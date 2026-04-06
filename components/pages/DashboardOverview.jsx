@@ -55,8 +55,8 @@ export default function DashboardOverview() {
             {/* Welcome Section */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '32px' }}>
                 <div>
-                    <h2 style={{ fontSize: '28px', fontWeight: '800', color: 'var(--text-primary)', marginBottom: '8px', letterSpacing: '-0.02em' }}>
-                        Healthcare Command Center
+                    <h2 style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-primary)', marginBottom: '8px', letterSpacing: '-0.02em', lineHeight: '1.2' }}>
+                        e-Booking Vaccination and Certificate Issuing System
                     </h2>
                     <p style={{ color: 'var(--text-secondary)', fontSize: '16px' }}>
                         Real-time monitoring of vaccination distribution and patient care.
@@ -145,9 +145,8 @@ export default function DashboardOverview() {
                 <div style={{ background: 'var(--surface)', borderRadius: '24px', padding: '28px', border: '1px solid var(--border)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                         <h3 style={{ fontSize: '20px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <Activity size={20} color="#ef4444" /> Vaccine Inventory
+                            Vaccine Inventory
                         </h3>
-                        <Activity size={18} color="var(--text-muted)" />
                     </div>
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                         <thead>
@@ -212,7 +211,7 @@ export default function DashboardOverview() {
                         ].map((btn, i) => (
                             <button key={i} style={{
                                 border: '1px solid var(--border)',
-                                background: 'white',
+                                background: 'var(--surface)',
                                 padding: '16px',
                                 borderRadius: '16px',
                                 display: 'flex',

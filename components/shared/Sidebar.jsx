@@ -87,12 +87,12 @@ export default function Sidebar({ activeSection, onSectionChange, isOpen, onClos
       <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
           <div className="sidebar-logo">
-            <div className="sidebar-logo-icon">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+            <div className="sidebar-logo-icon" style={{ background: 'transparent', border: '2px solid var(--primary)' }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="2.5">
                 <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
               </svg>
             </div>
-            <span className="sidebar-logo-text">VaxManager</span>
+            <span className="sidebar-logo-text" style={{ color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>e-Booking</span>
           </div>
         </div>
         <nav className="sidebar-nav">
@@ -109,6 +109,26 @@ export default function Sidebar({ activeSection, onSectionChange, isOpen, onClos
               <span>{item.label}</span>
             </button>
           ))}
+          
+          <div style={{ flex: 1 }}></div>
+
+          <button
+            className="sidebar-nav-item"
+            style={{ color: 'var(--danger)', marginTop: 'auto' }}
+            onClick={() => {
+              if (window.confirm("Are you sure you want to logout?")) {
+                localStorage.removeItem('token');
+                window.location.href = '/';
+              }
+            }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+            <span>Logout</span>
+          </button>
         </nav>
       </aside>
     </>

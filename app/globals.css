@@ -123,3 +123,29 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Hide Vercel v0, Next build indicators & Dev overlays */
+#vercel-toolbar,
+.vercel-toolbar,
+[data-vercel-toolbar],
+[data-v0-dev-toolbar],
+#v0-container,
+.v0-badge,
+nextjs-portal,
+[data-nextjs-toast],
+.nextjs-static-indicator-toast-wrapper {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/* Fix Autofill White Background on Modern Browsers */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus, 
+input:-webkit-autofill:active {
+    transition: background-color 5000s ease-in-out 0s;
+    -webkit-text-fill-color: white !important;
+    caret-color: white !important;
+}

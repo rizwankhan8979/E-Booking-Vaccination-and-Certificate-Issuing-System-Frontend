@@ -3,13 +3,13 @@
 import React, { useState, useEffect } from "react";
 import { toast } from 'sonner';
 import api from "../../lib/axios";
+import { useStore } from "../../lib/store";
 import Card from "../shared/Card";
 import Table from "../shared/Table";
 import Modal from "../shared/Modal";
 
 export default function DoctorsPage() {
-  const [doctors, setDoctors] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const { doctors, loadingDoctors: loading, fetchDoctors } = useStore();
   const [showAddModal, setShowAddModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showAssociateModal, setShowAssociateModal] = useState(false);
@@ -32,28 +32,9 @@ export default function DoctorsPage() {
   const [associateError, setAssociateError] = useState("");
   const [fetchError, setFetchError] = useState("");
 
-  // GET /doctor/getAll - Fetch doctors on page load
-  const fetchDoctors = async () => {
-    setLoading(true);
-    setFetchError("");
-    try {
-      const response = await api.get("/doctor/getAll");
-      setDoctors(Array.isArray(response.data) ? response.data : []);
-    } catch (error) {
-      console.error("Error fetching doctors:", error);
-      // Backend returns 500 if DB is empty? unlikely, usually returns empty list.
-      // But if JSON recursion was happening, it was 500. Now fixed.
-      setFetchError(error.response?.data?.message || "Failed to fetch doctors");
-      toast.error("Failed to fetch doctors");
-      setDoctors([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
     fetchDoctors();
-  }, []);
+  }, [fetchDoctors]);
 
   // POST /doctor/add - Add new doctor
   const handleAddDoctor = async (e) => {
@@ -82,12 +63,19 @@ export default function DoctorsPage() {
         gender: "MALE",
         emailId: "",
       });
-      fetchDoctors();
+      fetchDoctors(true); // force reload
       setShowAddModal(false);
     } catch (error) {
       console.error("Error adding doctor:", error);
-      const msg = error.response?.data?.message || error.response?.data || "Failed to add doctor";
-      toast.error(msg);
+      if (error.response?.status === 403) {
+        toast.error("Access Denied", {
+          description: "This operation is restricted to Administrators only. Please contact your supervisor.",
+          duration: 5000,
+        });
+      } else {
+        const msg = error.response?.data?.message || error.response?.data || "Failed to add doctor";
+        toast.error(msg);
+      }
     }
   };
 
@@ -108,12 +96,19 @@ export default function DoctorsPage() {
       toast.success(msg);
 
       setAssociateData({ docId: "", centerId: "" });
-      fetchDoctors();
+      fetchDoctors(true); // force reload
       setShowAssociateModal(false);
     } catch (error) {
       console.error("Error associating doctor:", error);
-      const msg = error.response?.data?.message || error.response?.data || "Failed to associate doctor";
-      toast.error(msg);
+      if (error.response?.status === 403) {
+        toast.error("Access Denied", {
+          description: "This operation is restricted to Administrators only. Please contact your supervisor.",
+          duration: 5000,
+        });
+      } else {
+        const msg = error.response?.data?.message || error.response?.data || "Failed to associate doctor";
+        toast.error(msg);
+      }
     }
   };
 
@@ -137,7 +132,13 @@ export default function DoctorsPage() {
         <div style={{ display: "flex", gap: "12px" }}>
           <button
             className="btn btn-outline"
-            onClick={() => setShowAssociateModal(true)}
+            onClick={() => {
+              if (!localStorage.getItem('token')) {
+                window.location.href = '/?auth=login';
+              } else {
+                setShowAssociateModal(true);
+              }
+            }}
           >
             <svg
               width="16"
@@ -154,7 +155,16 @@ export default function DoctorsPage() {
             </svg>
             Associate with Center
           </button>
-          <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>
+          <button 
+            className="btn btn-primary" 
+            onClick={() => {
+              if (!localStorage.getItem('token')) {
+                window.location.href = '/?auth=login';
+              } else {
+                setShowAddModal(true);
+              }
+            }}
+          >
             <svg
               width="16"
               height="16"
@@ -202,7 +212,7 @@ export default function DoctorsPage() {
 
                       await Promise.all(samples.map(data => api.post("/doctor/add", data)));
                       toast.success("Sample doctors loaded successfully");
-                      fetchDoctors();
+                      fetchDoctors(true); // force reload
                     } catch (err) {
                       console.error(err);
                       toast.error("Failed to load sample doctors");
